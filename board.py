@@ -2,7 +2,7 @@ import numpy as np
 DTYPE = np.dtype("i")
 
 class Board():
-    def __init__(self, grid, static:bool):
+    def __init__(self, grid):
         # Data below is for board management and solving
         self.initial_grid = grid
         self.grid = grid
@@ -10,7 +10,6 @@ class Board():
         self.player_history = []
         self.boards_seen = set()
         self.moves = 0
-        self.static = static
         self.selected_peg = [0, 0]
         self.available_locs = {}
 
@@ -33,25 +32,25 @@ class Board():
                         new_grid[r][c] = 0
                         new_grid[r-1][c] = 0
                         new_grid[r-2][c] = 1
-                        results.append(Board(new_grid, static=self.static))
+                        results.append(Board(new_grid))
                     if (c+2 < cols) and (self.grid[r][c+1] == 1) and (self.grid[r][c+2] == 0):
                         new_grid = self.grid.copy()
                         new_grid[r][c] = 0
                         new_grid[r][c+1] = 0
                         new_grid[r][c+2] = 1
-                        results.append(Board(new_grid, static=self.static))
+                        results.append(Board(new_grid))
                     if (r+2 < rows) and (self.grid[r+1][c] == 1) and (self.grid[r+2][c] == 0):
                         new_grid = self.grid.copy()
                         new_grid[r][c] = 0
                         new_grid[r+1][c] = 0
                         new_grid[r+2][c] = 1
-                        results.append(Board(new_grid, static=self.static))
+                        results.append(Board(new_grid))
                     if (c-2 >= 0) and (self.grid[r][c-1] == 1) and (self.grid[r][c-2] == 0):
                         new_grid = self.grid.copy()
                         new_grid[r][c] = 0
                         new_grid[r][c-1] = 0
                         new_grid[r][c-2] = 1
-                        results.append(Board(new_grid, static=self.static))
+                        results.append(Board(new_grid))
         return results
 
     # Using numpy allows for easy rotations to check if the board has been seen before
