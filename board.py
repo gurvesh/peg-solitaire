@@ -1,5 +1,6 @@
 import numpy as np
 DTYPE = np.dtype("i")
+import random
 
 class Board():
     def __init__(self, grid):
@@ -15,7 +16,7 @@ class Board():
 
     # Let's define a way to reset the grid, if we want to start again
     def reset(self):
-        self.grid = self.initial_grid
+        # self.grid = self.initial_grid
         self.solver_history = []
         self.boards_seen = set()
         self.moves = 0
@@ -66,19 +67,20 @@ class Board():
             np.rot90(np.transpose(self.grid), 3).data.tobytes() in boards_seen
         )
         
-    def solve(self, npegs: int) -> list:
-        if self.__solve_r([self], npegs):
-            print("Solution found. No. of moves made to find this: ", self.moves)
-            solution = self.solver_history.copy()
-        else:
-            print("No solution found")
-            solution = []
-        self.reset()
-        return solution
+    def solve(self) -> list:
+        for npegs in range(1, 6):
+            self.reset()
+            if self.__solve_r([self], npegs):
+                print(f"Solution found with {npegs} pegs. No. of moves made to find this: ", self.moves)
+                solution = self.solver_history.copy()
+                return solution
+        print("No solution found")
+        return []
 
     # We use DFS to solve the board. 
     def __solve_r(self, history: list, npegs: int) -> bool:
         for new_board in history[-1].find_moves():
+            # print(new_board.grid)
             self.moves += 1
             if np.sum(new_board.grid == 1) == npegs:
                 history.append(new_board)
@@ -95,7 +97,7 @@ class Board():
     
     # find_available_locs finds only the available locs for the selected_peg
     # Each available loc will "point to" the jump peg to be removed. 
-    # This should enable easy removal/destruction and placement of the peg
+    # This should enable easy removal and placement of the peg
     # This is a convenience function for updating the grid window representation.
     def find_available_locs(self):
         results = {}

@@ -22,4 +22,16 @@ EMPTY_BOARD = np.array([
     [8, 8, 1, 1, 1, 8, 8]    
 ], DTYPE)
 
+SOLITAIRE1 = np.array([
+    [8, 8, 1, 1, 1, 8, 8],
+    [8, 8, 1, 1, 1, 8, 8],
+    [1, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 1, 0, 0, 1],
+    [8, 8, 1, 0, 1, 8, 8],
+    [8, 8, 1, 1, 1, 8, 8]    
+], DTYPE)
+
 GRID_SIZE = 100
+
+ANIMATION_SPEED = 10  # Speed of animation in pixels per frame

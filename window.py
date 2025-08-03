@@ -1,14 +1,33 @@
 from tkinter import *
+import tkinter as tk
 from tkinter import ttk
 from tkinter import messagebox
 from board import Board
 import numpy as np
-from constants import SOLITAIRE, EMPTY_BOARD, GRID_SIZE
+from constants import SOLITAIRE, EMPTY_BOARD, GRID_SIZE, ANIMATION_SPEED
+import juliacall
+from juliacall import Main as jl
+from juliacall import Pkg as jlPkg
+
+jlPkg.activate("./SolSolver")
+jl.seval("using SolSolver")
 
 class Window():
     def __init__(self, root):
         self.root = root
+        self.root.title("Solitaire game")
         self.mainframe = ttk.Frame(self.root)
+        self.mainframe.grid(column=0, row=0, sticky=(N, W, E, S))
+        self.game_over = False
+        self.init_board()
+        self.init_controls()
+        self.root.mainloop()
+
+    def init_board(self):
+        self.boardframe = ttk.Frame(self.mainframe)
+        self.boardframe.grid(column=0, row=0, sticky=(N, W, E, S))
+        self.root.columnconfigure(0, weight=1)
+        self.root.rowconfigure(0, weight=1)
         self.board = Board(SOLITAIRE)
         self.board.static = False # The pegs can be dragged
         self.empty_board = Board(EMPTY_BOARD)
@@ -16,20 +35,68 @@ class Window():
         self._drag_start_x = 0
         self._drag_start_y = 0
         self.widget_map = {}
-        self.game_over = False
-        self.init_board()
-
-    def init_board(self):
-        self.root.title("Solitaire game")
-        self.mainframe.grid(column=0, row=0, sticky=(N, W, E, S))
-        self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(0, weight=1)
         self.draw_grid(self.empty_board)
         self.draw_grid(self.board)
-        solution = self.board.solve(npegs=1)
-        self.animate_solution(solution)
-        self.root.mainloop()
+
+    def reset_board(self):
+        self.board = Board(SOLITAIRE)
+        self.board.static = False
+        for peg in self.widget_map:
+            if self.widget_map[peg]:
+                self.widget_map[peg].destroy()
+        self.widget_map = {}
+        self.draw_grid(self.board)
+
+    def init_controls(self):
+        self.controls = ttk.Frame(self.mainframe)
+        self.controls.grid(column=1, row=0, sticky=(N, W, E, S))
+        self.reset_button = ttk.Button(self.controls, text="Reset", command=self.reset_board)
+        self.reset_button.grid(column=0, row=0, padx=5, pady=5)
+        self.solve_button = ttk.Button(self.controls, text="Solve", command=self.solve_board)
+        self.solve_button.grid(column=0, row=1, padx=5, pady=5)
+        self.hint_button = ttk.Button(self.controls, text="Hint", command=None)
+        self.hint_button.grid(column=0, row=2, padx=5, pady=5)
+
+    def solve_board(self):
+        if np.sum(self.board.grid == 1) == 1:
+            messagebox.showinfo(message="Game already solved!")
+            return
+        # print(self.board.grid)
+        # Let's use Julia to make the solver Fasterrrrr
+        jl_matrix = juliacall.convert(jl.Matrix[jl.Int64], self.board.grid)
+        # solution = self.board.solve()
         
+        loading_dialog = tk.Toplevel(self.root)
+        loading_dialog.title("Solving")
+        root_x = self.root.winfo_x()
+        root_y = self.root.winfo_y()
+        root_w = self.root.winfo_width()
+        root_h = self.root.winfo_height()
+        dialog_w = 250
+        dialog_h = 100
+        pos_x = root_x + (root_w // 2) - (dialog_w // 2)
+        pos_y = root_y + (root_h // 2) - (dialog_h // 2)
+        loading_dialog.geometry(f"{dialog_w}x{dialog_h}+{pos_x}+{pos_y}")
+        loading_dialog.transient(self.root)
+        loading_dialog.grab_set()
+        loading_dialog.resizable(False, False)
+
+        tk.Label(
+            loading_dialog,
+            text="Solving, please wait...",
+        ).grid(row=0, column=0, padx=20, pady=20)
+
+        self.root.update_idletasks()
+
+        solution = jl.solve(jl_matrix)
+
+        loading_dialog.destroy()
+        
+        if solution:
+            py_solution = []
+            for solution_step in solution:
+                py_solution.append(solution_step.to_numpy())
+            self.animate_solution(py_solution)
 
     # Methods below are for drawing and updating the board
     def make_draggable(self, widget):
@@ -105,7 +172,7 @@ class Window():
 
     def make_peg(self, row, col, static:bool):
         # We'll create a new widget for each circle
-        widget = Canvas(self.mainframe, height=GRID_SIZE, width=GRID_SIZE)
+        widget = Canvas(self.boardframe, height=GRID_SIZE, width=GRID_SIZE)
         if static:
             widget.create_oval(10, 10, GRID_SIZE-10, GRID_SIZE-10) # The hole for the peg
         else:
@@ -124,28 +191,27 @@ class Window():
     def animate_solution(self, solution, idx=0):
         if idx >= len(solution) - 1:
             return
-        init_board = solution[idx]
-        final_board = solution[idx + 1]
-        self.animate_move_with_callback(init_board, final_board, lambda: self.animate_solution(solution, idx + 1))
+        init_grid = solution[idx]
+        final_grid = solution[idx + 1]
+        self.animate_move_with_callback(init_grid, final_grid, lambda: self.animate_solution(solution, idx + 1))
     
-    def animate_move_with_callback(self, init_board, final_board, callback):
-        init_grid, final_grid = init_board.grid, final_board.grid
+    def animate_move_with_callback(self, init_grid, final_grid, callback):
         delta_grid = final_grid - init_grid
         final_loc = np.nonzero(delta_grid == 1)
-        final_peg = (int(final_loc[0][0]), int(final_loc[1][0])) # Note this location is empty
+        final_peg = final_loc[0][0], final_loc[1][0] # Note this location is empty
         # Let's create a final_peg, and hide it - makes it easier to move
-        print(final_peg)
+        # print(final_peg)
         self.make_peg(final_peg[0], final_peg[1], False)
         final_widget = self.widget_map[final_peg]
         Misc.lower(final_widget)
 
         # This is required - to ensure the peg actually gets drawn... took help from Gemini
-        self.mainframe.update_idletasks()
+        self.boardframe.update_idletasks()
 
         removed_indices = np.nonzero(delta_grid == -1)
         # print(removed_indices)
-        ind1_r, ind1_c = int(removed_indices[0][0]), int(removed_indices[1][0])
-        ind2_r, ind2_c = int(removed_indices[0][1]), int(removed_indices[1][1])
+        ind1_r, ind1_c = removed_indices[0][0], removed_indices[1][0]
+        ind2_r, ind2_c = removed_indices[0][1], removed_indices[1][1]
 
         dist_ind1_final_loc = abs(ind1_r-final_peg[0]) + abs(ind1_c-final_peg[1])
         jump_peg = (ind1_r, ind1_c) if dist_ind1_final_loc == 1 else (ind2_r, ind2_c)
@@ -156,8 +222,10 @@ class Window():
         init_widget = self.widget_map[init_peg]
         jump_widget = self.widget_map[jump_peg]
         self.animate_widget_with_callback(init_widget, jump_widget, final_widget, callback)
+        self.widget_map[init_peg] = None
+        self.widget_map[jump_peg] = None
 
-    def animate_widget_with_callback(self, init_widget, jump_widget, final_widget, callback, speed=5, after_id=None):
+    def animate_widget_with_callback(self, init_widget, jump_widget, final_widget, callback, speed=ANIMATION_SPEED):
         Misc.lift(init_widget)
         current_x = init_widget.winfo_x()
         current_y = init_widget.winfo_y()
@@ -170,14 +238,13 @@ class Window():
         distance = (dx**2 + dy**2)**0.5
 
         if distance < speed:
-            # Cancel any pending after callback before destroying
-            if after_id is not None:
-                init_widget.after_cancel(after_id)
-            init_widget.destroy()
-            jump_widget.destroy()
+            # Instead of using widget.destroy(), we will hide the widgets, and remove them from the widget_map
+            # This removes some weird Tcl bugs with the animation
+            Misc.lower(init_widget)
+            Misc.lower(jump_widget)
             Misc.lift(final_widget)
             if callback:
-                final_widget.after(200, callback)  # Call the callback after a short delay
+                final_widget.after(500 // ANIMATION_SPEED, callback)  # Call the callback after a short delay
             return
         
         # Calculate the next step's position
@@ -185,12 +252,8 @@ class Window():
         next_x = current_x + (dx / distance) * speed
         next_y = current_y + (dy / distance) * speed
         
-        # Move the widget to the next position
         init_widget.place(x=next_x, y=next_y)
 
-        # Schedule the next frame of the animation after a short delay (e.g., 15ms)
-        def next_frame():
-            self.animate_widget_with_callback(
-                init_widget, jump_widget, final_widget, callback, speed, after_id=new_after_id
-            )
-        new_after_id = init_widget.after(15, next_frame)
+        # Schedule the next frame of the animation after a short delay
+        init_widget.after(15, lambda: self.animate_widget_with_callback(
+            init_widget, jump_widget, final_widget, callback, speed))
