@@ -38,8 +38,9 @@ class Window():
         self.draw_grid(self.empty_board)
         self.draw_grid(self.board)
 
-    def reset_board(self):
-        self.board = Board(SOLITAIRE)
+    def reset_board(self, grid=None):
+        grid = SOLITAIRE if grid is None else grid
+        self.board = Board(grid)
         self.board.static = False
         for peg in self.widget_map:
             if self.widget_map[peg]:
@@ -48,24 +49,25 @@ class Window():
         self.draw_grid(self.board)
 
     def init_controls(self):
-        self.controls = ttk.Frame(self.mainframe)
-        self.controls.grid(column=1, row=0, sticky=(N, W, E, S))
-        self.reset_button = ttk.Button(self.controls, text="Reset", command=self.reset_board)
-        self.reset_button.grid(column=0, row=0, padx=5, pady=5)
-        self.solve_button = ttk.Button(self.controls, text="Solve", command=self.solve_board)
-        self.solve_button.grid(column=0, row=1, padx=5, pady=5)
-        self.hint_button = ttk.Button(self.controls, text="Hint", command=None)
-        self.hint_button.grid(column=0, row=2, padx=5, pady=5)
+        controls = ttk.Frame(self.mainframe)
+        controls.grid(column=1, row=0, sticky=(N, W, E, S))
+        reset_button = ttk.Button(controls, text="Reset", command=self.reset_board)
+        reset_button.grid(column=0, row=0, padx=5, pady=5)
+        solve_button = ttk.Button(controls, text="Solve", command=self.solve_board)
+        solve_button.grid(column=0, row=1, padx=5, pady=5)
+        hint_button = ttk.Button(controls, text="Hint", command=lambda: self.solve_board(hint=True))
+        # hint_button = ttk.Button(controls, text="Hint", command=None)
+        hint_button.grid(column=0, row=2, padx=5, pady=5)
 
-    def solve_board(self):
+    def solve_board(self, hint=False):
         if np.sum(self.board.grid == 1) == 1:
             messagebox.showinfo(message="Game already solved!")
             return
-        # print(self.board.grid)
-        # Let's use Julia to make the solver Fasterrrrr
-        jl_matrix = juliacall.convert(jl.Matrix[jl.Int64], self.board.grid)
-        # solution = self.board.solve()
-        
+        # - This was the Python solution...
+        # solution = self.board.solve() 
+        # Instead, let's use Julia to make the solver Fasterrrrr
+
+        # Warn the user that solving is in progress, and take control away..         
         loading_dialog = tk.Toplevel(self.root)
         loading_dialog.title("Solving")
         root_x = self.root.winfo_x()
@@ -85,18 +87,28 @@ class Window():
             loading_dialog,
             text="Solving, please wait...",
         ).grid(row=0, column=0, padx=20, pady=20)
-
         self.root.update_idletasks()
 
+        # Convert the board to a Julia matrix
+        jl_matrix = juliacall.convert(jl.Matrix[jl.Int64], self.board.grid)
+        # And get Julia to solve it. The function being used (solver) is defined in the Julia package SolSolver
         solution = jl.solve(jl_matrix)
 
+        # Now we can close the solving dialog
         loading_dialog.destroy()
         
+        # Convert the solution (Julia list of Julia matrices) to a Python list of numpy arrays
+        # And send it to be animated
         if solution:
             py_solution = []
             for solution_step in solution:
                 py_solution.append(solution_step.to_numpy())
+            if hint:
+                # If this is a "hint" call, we only want to highlight the pegs to be moved.
+                py_solution = py_solution[0:2]
             self.animate_solution(py_solution)
+            if hint:
+                self.root.after(ANIMATION_SPEED * 50, lambda: self.reset_board(py_solution[0]))  # Reset the board after a delay
 
     # Methods below are for drawing and updating the board
     def make_draggable(self, widget):
@@ -194,6 +206,7 @@ class Window():
         init_grid = solution[idx]
         final_grid = solution[idx + 1]
         self.animate_move_with_callback(init_grid, final_grid, lambda: self.animate_solution(solution, idx + 1))
+        self.board.grid = final_grid
     
     def animate_move_with_callback(self, init_grid, final_grid, callback):
         delta_grid = final_grid - init_grid
@@ -239,7 +252,7 @@ class Window():
 
         if distance < speed:
             # Instead of using widget.destroy(), we will hide the widgets, and remove them from the widget_map
-            # This removes some weird Tcl bugs with the animation
+            # This removes some weird Tcl bugs with the animation, due to callbacks being called after the widget is destroyed
             Misc.lower(init_widget)
             Misc.lower(jump_widget)
             Misc.lift(final_widget)
