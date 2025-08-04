@@ -8,7 +8,6 @@ class Board():
         self.initial_grid = grid
         self.grid = grid
         self.solver_history = []
-        self.player_history = []
         self.boards_seen = set()
         self.moves = 0
         self.selected_peg = [0, 0]

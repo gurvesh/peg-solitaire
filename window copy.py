@@ -40,7 +40,7 @@ class Window():
         self.future = [] # This will be used to store future moves, if we go back in history
         self.draw_grid(self.empty_board)
         self.draw_grid(self.board)
-        # self.animation_finished = True  # To track if any animation is in progress
+        self.prev_move_msg_shown = False  # To ensure "No previous moves" message is shown only once
 
     def reset_board(self, grid=None, reset_history=False):
         grid = SOLITAIRE if grid is None else grid
@@ -70,22 +70,16 @@ class Window():
 
     def prev_move(self, _event=None):
         if len(self.history) <= 1:
-            messagebox.showinfo(message="No previous moves to go back to!")
+            if not self.prev_move_msg_shown:
+                messagebox.showinfo(message="No previous moves to go back to!")
+                self.prev_move_msg_shown = True
             return
         # Pop the last move from history, and push it to future
         last_move = self.history.pop()
         self.future.append(last_move)
         # Now set the board to the last move in history
         self.board.grid = self.history[-1]
-        init_peg, jump_peg, final_peg = self.get_pegs(self.board.grid, last_move)
-        # Recreate the pegs at the correct locations
-        final_widget = self.widget_map[final_peg]
-        final_widget.destroy()
-        self.widget_map[final_peg] = None  # Remove the final peg from the widget map
-        self.make_peg(init_peg[0], init_peg[1], self.board.static)
-        self.make_peg(jump_peg[0], jump_peg[1], self.board.static)
-        # Now redraw the board with the updated grid
-        self.root.update_idletasks()  # Ensure the board is updated before animating
+        self.reset_board(self.board.grid)
 
     def next_move(self, _event=None):
         if not self.future:
@@ -96,6 +90,7 @@ class Window():
         self.history.append(next_move)
         # Now set the board to the next move
         self.animation_wrapper([self.board.grid, next_move])
+        self.prev_move_msg_shown = False
 
     def solve_board(self, hint=False):
         if np.sum(self.board.grid == 1) == 1:
@@ -145,10 +140,14 @@ class Window():
                 # If this is a "hint" call, we only want to highlight the pegs to be moved.
                 py_solution = py_solution[0:2]
             self.animation_wrapper(py_solution)
-            self.history += py_solution[1:]
             if hint:
-                self.root.after(ANIMATION_SPEED * 50, self.prev_move)  # Reset the board after a delay
-                
+                self.root.after(ANIMATION_SPEED * 50, lambda: self.reset_board(py_solution[0]))  # Reset the board after a delay
+                self.future = []
+            else:
+                # Update the history with the solution, excluding the initial state, which is already in history
+                self.history += py_solution[1:]
+        self.check_game_end()
+
     # Methods below are for drawing and updating the board
     def make_draggable(self, widget):
         """Makes a widget draggable."""
@@ -201,6 +200,7 @@ class Window():
             new_grid[final_r, final_c] = 1
             new_grid[to_remove_r, to_remove_c] = 0
             new_grid[r, c] = 0
+            # self.board.player_history.append(self.board.grid)
             self.board.grid = new_grid
             self.history.append(self.board.grid)  # Update the history with the new grid
             self.future = []  # Clear the future moves, as we have a new move
@@ -216,6 +216,7 @@ class Window():
         # The below should ensure "Game over" message only pops up once
         if not self.game_over:
             self.check_game_end()
+        self.prev_move_msg_shown = False  # Reset the previous move message shown flag
 
     def draw_grid(self, board:Board):
         for r, row_data in enumerate(board.grid):
@@ -246,30 +247,45 @@ class Window():
         # Then it starts the animation
         controller_widget = tk.Toplevel(self.root)
         controller_widget.grab_set()  # Prevent interaction with the main window during animation
-        # controller_widget.lift()  # Keep the controller widget on top
         Misc.lower(controller_widget)  # Lower it to avoid focus issues
+        self.prev_move_msg_shown = False  # Reset the previous move message shown flag
         self.animate_solution(solution, controller_widget=controller_widget)
 
     def animate_solution(self, solution, controller_widget, idx=0):
         # print(idx)
         if idx >= len(solution) - 1:
-            self.root.after(ANIMATION_SPEED * 10, lambda: controller_widget.destroy())
+            # Animation finished, we can destroy the controller widget, which will return control to the main window
+            controller_widget.destroy()
             return
         init_grid = solution[idx]
         final_grid = solution[idx + 1]
         self.animate_move_with_callback(init_grid, final_grid, lambda: self.animate_solution(solution, controller_widget, idx + 1))
         self.board.grid = final_grid
-        # if self.animation_finished:
-        #     controller_widget.destroy()
     
     def animate_move_with_callback(self, init_grid, final_grid, callback):
-        init_peg, jump_peg, final_peg = self.get_pegs(init_grid, final_grid)
+        delta_grid = final_grid - init_grid
+        final_loc = np.nonzero(delta_grid == 1)
+        final_peg = final_loc[0][0], final_loc[1][0] # Note this location is empty
+        # Let's create a final_peg, and hide it - makes it easier to move
+        # print(final_peg)
         self.make_peg(final_peg[0], final_peg[1], False)
         final_widget = self.widget_map[final_peg]
         Misc.lower(final_widget)
 
         # This is required - to ensure the peg actually gets drawn... took help from Gemini
         self.boardframe.update_idletasks()
+
+        removed_indices = np.nonzero(delta_grid == -1)
+        # print(removed_indices)
+        ind1_r, ind1_c = removed_indices[0][0], removed_indices[1][0]
+        ind2_r, ind2_c = removed_indices[0][1], removed_indices[1][1]
+
+        dist_ind1_final_loc = abs(ind1_r-final_peg[0]) + abs(ind1_c-final_peg[1])
+        jump_peg = (ind1_r, ind1_c) if dist_ind1_final_loc == 1 else (ind2_r, ind2_c)
+        init_peg = (ind1_r, ind1_c) if dist_ind1_final_loc == 2 else (ind2_r, ind2_c)
+        
+        # Now we need to move the init_peg to the final_peg
+        # Then remove the init peg, jump peg, and re-create the final peg
         init_widget = self.widget_map[init_peg]
         jump_widget = self.widget_map[jump_peg]
         self.animate_widget_with_callback(init_widget, jump_widget, final_widget, callback)
@@ -308,17 +324,3 @@ class Window():
         # Schedule the next frame of the animation after a short delay
         init_widget.after(15, lambda: self.animate_widget_with_callback(
             init_widget, jump_widget, final_widget, callback, speed))
-        
-    def get_pegs(self, init_grid, final_grid):
-        delta_grid = final_grid - init_grid
-        final_loc = np.nonzero(delta_grid == 1)
-        final_peg = final_loc[0][0], final_loc[1][0]
-
-        removed_indices = np.nonzero(delta_grid == -1)
-        ind1_r, ind1_c = removed_indices[0][0], removed_indices[1][0]
-        ind2_r, ind2_c = removed_indices[0][1], removed_indices[1][1]
-
-        dist_ind1_final_loc = abs(ind1_r-final_peg[0]) + abs(ind1_c-final_peg[1])
-        jump_peg = (ind1_r, ind1_c) if dist_ind1_final_loc == 1 else (ind2_r, ind2_c)
-        init_peg = (ind1_r, ind1_c) if dist_ind1_final_loc == 2 else (ind2_r, ind2_c)
-        return init_peg, jump_peg, final_peg
