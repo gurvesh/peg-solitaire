@@ -78,14 +78,14 @@ class Window():
         # Now set the board to the last move in history
         self.board.grid = self.history[-1]
         init_peg, jump_peg, final_peg = self.get_pegs(self.board.grid, last_move)
-        # Recreate the pegs at the correct locations
+        # Destroy / Recreate the pegs at the correct locations
+        # Since there is no animation, destroying the final peg is ok. 
         final_widget = self.widget_map[final_peg]
         final_widget.destroy()
         self.widget_map[final_peg] = None  # Remove the final peg from the widget map
         self.make_peg(init_peg[0], init_peg[1], self.board.static)
         self.make_peg(jump_peg[0], jump_peg[1], self.board.static)
-        # Now redraw the board with the updated grid
-        self.root.update_idletasks()  # Ensure the board is updated before animating
+        self.root.update_idletasks() 
 
     def next_move(self, _event=None):
         if not self.future:
@@ -94,7 +94,7 @@ class Window():
         # Pop the last move from future, and push it to history
         next_move = self.future.pop()
         self.history.append(next_move)
-        # Now set the board to the next move
+
         self.animation_wrapper([self.board.grid, next_move])
 
     def solve_board(self, hint=False):
@@ -147,6 +147,7 @@ class Window():
             self.animation_wrapper(py_solution)
             self.history += py_solution[1:]
             if hint:
+                self.future = []
                 self.root.after(ANIMATION_SPEED * 50, self.prev_move)  # Reset the board after a delay
                 
     # Methods below are for drawing and updating the board

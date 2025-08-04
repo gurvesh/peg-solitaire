@@ -54,6 +54,7 @@ function solve(board::Matrix{Int64})
     full_history = []
     boards_seen = Set()
     moves = 0
+    n_duplicate_boards = 0
     function depth_first(history::AbstractVector, nmarbles::Integer)
         for new_grid in find_moves(history[end])
             moves += 1
@@ -62,7 +63,8 @@ function solve(board::Matrix{Int64})
                 full_history = history
                 return true
             elseif check_similar(new_grid, boards_seen) # seen a similar board, go to next one
-                 continue
+                n_duplicate_boards += 1 
+                continue
             end
             history_copy = copy(history)
             push!(history_copy, new_grid) # Keep track of where we are
@@ -77,9 +79,10 @@ function solve(board::Matrix{Int64})
         full_history = []
         boards_seen = Set()
         moves = 0
+        n_duplicate_boards = 0
         sol = depth_first([board], npegs)
         if sol
-            println("Best solution: $npegs pegs. No. of moves made to find this: $moves")
+            println("Best solution: $npegs pegs. No. of moves made to find this: $moves. No. of unique boards seen: $(moves - n_duplicate_boards)")
             return full_history
         end
     end

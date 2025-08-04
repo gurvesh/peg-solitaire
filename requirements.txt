@@ -1,0 +1,7 @@
+filelock==3.18.0
+juliacall==0.9.26
+juliapkg==0.1.17
+numpy==2.3.2
+semver==3.0.4
+setuptools==78.1.1
+wheel==0.45.1

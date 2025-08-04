@@ -34,4 +34,4 @@ SOLITAIRE1 = np.array([
 
 GRID_SIZE = 100
 
-ANIMATION_SPEED = 10  # Speed of animation in pixels per frame
+ANIMATION_SPEED = 25  # Speed of animation in pixels per frame
