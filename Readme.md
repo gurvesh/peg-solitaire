@@ -1,6 +1,6 @@
 # Peg Solitaire Game
 
-An implementation the classic Peg Solitaire game using Python's Tkinter library for the GUI and Julia for the solver.
+An implementation of the classic Peg Solitaire game using Python's Tkinter library for the GUI and Julia for the solver.
 
 This is my first project for the [Boot.dev](https://boot.dev) course on Python.
 
