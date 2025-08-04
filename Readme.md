@@ -6,7 +6,7 @@ This is my first project for the [Boot.dev](https://boot.dev) course on Python.
 
 Includes a graphical interface to play the game, as well as a solver that can find solutions to the game using depth-first search (DFS).
 
-[demo video](demo.gif) of the game in action.
+![demo video](demo.gif) of the game in action.
 
 ## Rules of Peg Solitaire
 - The game is played on a board with pegs arranged in a cross shape, with one starting empty space in the centre.
